@@ -1,0 +1,60 @@
+trigger:
+  - master
+resources:
+  - repo: self
+stages:
+  - stage: Build
+    displayName: Build stage
+    jobs: null
+steps:
+  - task: Maven@3
+    displayName: Maven test
+    inputs:
+      mavenPomFile: $(Parameters.mavenPOMFile)
+      goals: test
+      steps: null
+  - task: Maven@3
+    displayName: Maven package
+    inputs:
+      mavenPomFile: $(Parameters.mavenPOMFile)
+      steps: null
+  - task: CopyFiles@2
+    displayName: Copy jar
+    inputs:
+      SourceFolder: $(system.defaultworkingdirectory)
+      Contents: '**/*.jar'
+      TargetFolder: $(build.artifactstagingdirectory)
+    condition: succeededOrFailed()
+    steps: null
+  - task: CopyFiles@2
+    displayName: Copy Manifest File
+    inputs:
+      SourceFolder: deployment-service.yaml
+      Contents: '**/*.jar'
+      TargetFolder: $(build.artifactstagingdirectory)
+    condition: succeededOrFailed()
+    steps: null
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifact: drop'
+    inputs:
+      PathtoPublish: $(build.artifactstagingdirectory)
+    condition: succeededOrFailed()
+    steps: null
+  - task: Docker@2
+    displayName: buildAndPush
+    inputs:
+      containerRegistry: Javaacr
+      repository: aarks/boardazure
+      tags: latest
+    steps: null
+  - task: KubectlInstaller@0
+    displayName: Install Kubectl latest
+    steps: null
+  - task: Kubernetes@1
+    displayName: kubectl apply
+    inputs:
+      kubernetesServiceEndpoint: k8-conn
+      namespace: default
+      command: apply
+      useConfigurationFile: true
+      configuration: deployment-service.yaml
